@@ -1223,9 +1223,13 @@
         }
 
         function downloadCSV() {
-            updateContactFromForm();
-            const contact = contacts[currentContactIndex];
-            
+            if (!validateDownload()) return; //updateContactFromForm();
+            const firstName = document.getElementById('firstName').value;
+            const lastName = document.getElementById('lastName').value;
+            const phoneMobile = document.getElementById('phoneMobile').value;  //const contact = contacts[currentContactIndex];
+
+
+            /*----------------------------------------------------dropped & replaced-----------------------------------------------
             // Create CSV content
             let csvContent = "data:text/csv;charset=utf-8,";
             
@@ -1243,7 +1247,80 @@
                 return value;
             }).join(",");
             
-            csvContent += row;
+            csvContent += row;  */
+            // Create CSV content with column-wise format (single row with headers)
+            const headers = [
+                'FirstName', 'MiddleName', 'LastName', 'NickName', 'PhoneHome', 'PhoneMobile', 
+                'EmailPersonal', 'DateOfBirth', 'Street1Personal', 'Street2Personal', 'CityPersonal', 
+                'ZipPersonal', 'CountryPersonal', 'Company', 'Department', 'Designation', 'Role', 
+                'PhoneWork', 'EmailWork', 'Street1Work', 'Street2Work', 'CityWork', 'ZipWork', 
+                'CountryWork', 'WebAddress', 'WhatsApp', 'WABusiness', 'Imo', 'Viber', 'Twitter', 
+                'Messenger', 'WeChat', 'Telegram', 'Snapchat', 'Facebook', 'LinkedIn', 'Instagram', 
+                'YouTube', 'Fiverr', 'Upwork', 'Freelancer'
+            ];
+            
+            const values = [
+                firstName,
+                document.getElementById('middleName').value,
+                lastName,
+                document.getElementById('nickName').value,
+                document.getElementById('phoneHome').value,
+                phoneMobile,
+                document.getElementById('emailPersonal').value,
+                document.getElementById('dob').value,
+                document.getElementById('street1Personal').value,
+                document.getElementById('street2Personal').value,
+                document.getElementById('cityPersonal').value,
+                document.getElementById('zipPersonal').value,
+                document.getElementById('countryPersonal').value,
+                document.getElementById('company').value,
+                document.getElementById('department').value,
+                document.getElementById('designation').value,
+                document.getElementById('role').value,
+                document.getElementById('phoneWork').value,
+                document.getElementById('emailWork').value,
+                document.getElementById('street1Work').value,
+                document.getElementById('street2Work').value,
+                document.getElementById('cityWork').value,
+                document.getElementById('zipWork').value,
+                document.getElementById('countryWork').value,
+                document.getElementById('webAddress').value,
+                document.getElementById('whatsapp').value,
+                document.getElementById('waBusiness').value,
+                document.getElementById('imo').value,
+                document.getElementById('viber').value,
+                document.getElementById('twitter').value,
+                document.getElementById('messenger').value,
+                document.getElementById('wechat').value,
+                document.getElementById('telegram').value,
+                document.getElementById('snapchat').value,
+                document.getElementById('facebook').value,
+                document.getElementById('linkedin').value,
+                document.getElementById('instagram').value,
+                document.getElementById('youtube').value,
+                document.getElementById('fiverr').value,
+                document.getElementById('upwork').value,
+                document.getElementById('freelancer').value
+            ];
+            
+            // Create CSV content
+            let csvContent = headers.join(',') + '\n';
+            csvContent += values.map(value => `"${value}"`).join(',');
+            
+            // Create and download file
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${firstName}_${lastName}_${phoneMobile}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+
+            
             
             // Create download link
             const encodedUri = encodeURI(csvContent);
