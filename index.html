@@ -1223,10 +1223,12 @@
         }
 
         function downloadCSV() {
-            if (!validateDownload()) return; //updateContactFromForm();
+            /*if (!validateDownload()) return; 
             const firstName = document.getElementById('firstName').value;
             const lastName = document.getElementById('lastName').value;
-            const phoneMobile = document.getElementById('phoneMobile').value;  //const contact = contacts[currentContactIndex];
+            const phoneMobile = document.getElementById('phoneMobile').value;  //
+            */
+            updateContactFromForm(); const contact = contacts[currentContactIndex];
 
 
             /*----------------------------------------------------dropped & replaced-----------------------------------------------
