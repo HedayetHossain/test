@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Contact Manager — CSV / XLSX upload, form, export (CSV / VCF / QR)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{--maxw:1100px;--accent:#0b6efd;--muted:#666}
+    body{font-family:Inter,system-ui,Segoe UI,Arial;line-height:1.4;margin:20px;background:#f6f8fb;color:#111}
+    .container{max-width:var(--maxw);margin:0 auto;background:#fff;padding:18px;border-radius:8px;box-shadow:0 6px 18px rgba(20,30,50,.06)}
+    h1{margin:0 0 8px;font-size:22px}
+    p.lead{margin:0 0 18px;color:var(--muted)}
+    .row{display:flex;gap:16px;flex-wrap:wrap}
+    .col{flex:1;min-width:250px}
+    label{display:block;font-size:13px;margin:8px 0 4px}
+    input[type="text"], input[type="email"], input[type="date"], select, textarea{width:100%;padding:8px;border:1px solid #d6ddea;border-radius:6px}
+    textarea{min-height:80px;resize:vertical}
+    .btn{background:var(--accent);color:#fff;padding:8px 12px;border-radius:6px;border:0;cursor:pointer}
+    .btn.secondary{background:#eef3ff;color:var(--accent);border:1px solid #d8e6ff}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+    .file-area{border:1px dashed #d6ddea;padding:12px;border-radius:6px;background:#fbfdff}
+    .preview{display:flex;gap:12px;align-items:center;margin-top:8px}
+    .thumb{width:84px;height:84px;border-radius:6px;object-fit:cover;border:1px solid #e2e8f0}
+    .id-control{display:flex;gap:8px;align-items:center}
+    .small{font-size:13px;color:var(--muted)}
+    .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+    .bottom-bar{display:flex;justify-content:space-between;align-items:center;margin-top:18px}
+    .scroll-btns{display:flex;gap:8px}
+    .template-block{background:#f8fbff;padding:10px;border-radius:6px;border:1px solid #e7f0ff;font-size:13px}
+    .note{font-size:13px;color:#333;margin-top:8px}
+    .qr{width:160px;height:160px;border:1px solid #e6eefc;padding:8px;background:#fff}
+    .status{font-size:13px;color:var(--muted)}
+    .error{color:#c53030}
+  </style>
+
+  <!-- Libraries from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs2@0.0.2/qrcode.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Contact Manager</h1>
+    <p class="lead">Upload CSV/XLSX, fetch by ID, edit, and export as CSV, vCard (v3) with image, or QR code. Save or open generated files locally. Follow UI steps 2–6 below.</p>
+
+    <!-- 1. Upload area -->
+    <h3>Upload File</h3>
+    <div class="file-area">
+      <div class="row">
+        <div class="col">
+          <label>Select CSV or Excel (.xlsx)</label>
+          <input id="file-input" type="file" accept=".csv, .xlsx, .xls" />
+          <div class="status" id="file-status">No file loaded</div>
+        </div>
+        <div class="col">
+          <label>Template (copy & save as .csv or .xlsx)</label>
+          <div class="template-block" id="template-block" style="white-space:pre-line;font-family:monospace;">
+ID,ImageBase64,FirstName,MiddleName,LastName,NickName,PhoneHome,PhoneMobile,Email,DOB,HomeStreet1,HomeStreet2,HomeCity,HomeZip,HomeCountry,Company,Department,Designation,Role,PhoneWork,WorkEmail,WorkStreet1,WorkStreet2,WorkCity,WorkZip,WorkCountry,WebAddress,WhatsApp,WA_Business,Imo,Viber,Twitter,Messenger,WeChat,Telegram,Sampchat,Facebook,LinkedIn,Instagram,YouTube,Fiverr,Upwork,Freelancer,Notes
+1,,John,A.,Doe,Johnny,0123456789,01711234567,john@example.com,12-Jan-1985,Home St 1,Home St 2,City,1000,Bangladesh,ACME,Sales,Manager,Sales Manager,0123456789,work@example.com,Office St 1,Office St 2,City,1000,Bangladesh,https://example.com,01711234567,01711234567,01711234567,01711234567,@john,@johnfb,@johnli,@johnig,@johnyt,@johnfvr,@johnup,@johnfr,Short note about contact
+          </div>
+          <div class="note">Tip: The template first row is headers. For images include base64 (data without data:image/*;base64, is also accepted). Save as CSV or XLSX.</div>
+        </div>
+      </div>
+    </div>
+
+    <hr />
+
+    <!-- 2. ID and fetch -->
+    <h3>Enter Contact ID</h3>
+    <div class="row">
+      <div class="col">
+        <label>Contact ID</label>
+        <div class="id-control">
+          <button class="btn secondary" id="dec-id">-</button>
+          <input id="contact-id" type="text" value="1" style="width:100px;text-align:center"/>
+          <button class="btn secondary" id="inc-id">+</button>
+          <div style="margin-left:8px;">
+            <button class="btn" id="fetch-from-file">Fetch Data from File</button>
+          </div>
+        </div>
+        <div class="small">Type ID or use plus/minus. ID should match the ID column in the uploaded file.</div>
+      </div>
+      <div class="col">
+        <label>Load mode</label>
+        <select id="load-mode">
+          <option value="file">Try load from uploaded file first</option>
+          <option value="manual">Open blank form for manual entry</option>
+        </select>
+        <div class="small">Choose whether to attempt to populate form from uploaded file</div>
+      </div>
+    </div>
+
+    <hr />
+
+    <!-- 3. Form -->
+    <h3>Contact Form</h3>
+    <div class="row">
+      <div class="col">
+        <h4>Personal Information</h4>
+        <label>Image (jpg/jpeg/png) - required</label>
+        <input id="image-file" type="file" accept="image/jpeg,image/jpg,image/png" />
+        <div class="preview" id="image-preview">
+          <img id="thumb" class="thumb" src="" alt="No image" style="display:none" />
+          <div>
+            <div class="small">Image will be converted to base64 and embedded in exports</div>
+            <div id="image-size" class="small"></div>
+          </div>
+        </div>
+
+        <label>First Name *</label>
+        <input id="firstName" type="text" />
+
+        <label>Middle Name</label>
+        <input id="middleName" type="text" />
+
+        <label>Last Name</label>
+        <input id="lastName" type="text" />
+
+        <label>NickName</label>
+        <input id="nickName" type="text" />
+
+        <label>Phone Home</label>
+        <input id="phoneHome" type="text" />
+
+        <label>Phone Mobile * (text)</label>
+        <input id="phoneMobile" type="text" required />
+
+        <label>Email</label>
+        <input id="email" type="email" />
+
+        <label>Date of Birth (dd-mmm-yyyy or dd-mmm)</label>
+        <input id="dob" type="text" placeholder="12-Jan-1985 or 12-Jan" />
+
+        <label>Address Street1</label>
+        <input id="homeStreet1" type="text" />
+        <label>Address Street2</label>
+        <input id="homeStreet2" type="text" />
+        <label>City</label>
+        <input id="homeCity" type="text" />
+        <label>Zip</label>
+        <input id="homeZip" type="text" />
+        <label>Home Country</label>
+        <select id="homeCountry"></select>
+      </div>
+
+      <div class="col">
+        <h4>Work Information</h4>
+        <label>Company</label>
+        <input id="company" type="text" />
+        <label>Department</label>
+        <input id="department" type="text" />
+        <label>Designation</label>
+        <input id="designation" type="text" />
+        <label>Role</label>
+        <input id="role" type="text" />
+        <label>Phone Work</label>
+        <input id="phoneWork" type="text" />
+        <label>Work Email</label>
+        <input id="workEmail" type="email" />
+        <label>Work Street1</label>
+        <input id="workStreet1" type="text" />
+        <label>Work Street2</label>
+        <input id="workStreet2" type="text" />
+        <label>Work City</label>
+        <input id="workCity" type="text" />
+        <label>Work Zip</label>
+        <input id="workZip" type="text" />
+        <label>Work Country</label>
+        <select id="workCountry"></select>
+
+        <h4>Other</h4>
+        <label>Web Address</label>
+        <input id="webAddress" type="text" />
+        <label>Instant Messages (WhatsApp, WA Business, Imo, Viber, Twitter, Messenger, WeChat, Telegram, Sampchat)</label>
+        <input id="im_all" type="text" placeholder="comma separated" />
+        <label>Social Media (Facebook, LinkedIn, Instagram, YouTube, Fiverr, Upwork, Freelancer)</label>
+        <input id="social_all" type="text" placeholder="comma separated" />
+        <label>Notes (plain text, max 500 characters)</label>
+        <textarea id="notes" maxlength="500"></textarea>
+
+        <div class="actions">
+          <button class="btn" id="save-manual">Save / Load into memory</button>
+          <button class="btn secondary" id="clear-form">Clear Form</button>
+        </div>
+      </div>
+
+      <div class="col" style="min-width:260px">
+        <h4>Export & Preview</h4>
+        <div id="preview-names" style="font-weight:600;margin-bottom:8px">No contact loaded</div>
+
+        <div style="margin-bottom:8px">
+          <button class="btn" id="download-csv">Download CSV</button>
+          <button class="btn" id="download-vcf">Download VCF (v3)</button>
+        </div>
+
+        <div style="margin-bottom:8px">
+          <button class="btn" id="generate-qr">Generate QR Code</button>
+          <button class="btn secondary" id="download-qr">Download QR as PNG</button>
+        </div>
+
+        <div id="qr-wrap" style="margin-top:12px">
+          <div id="qrcode" class="qr"></div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="small">Filename pattern: <strong>FirstName_LastName_PhoneMobile</strong></div>
+        </div>
+
+      </div>
+    </div>
+
+    <hr />
+
+    <div class="bottom-bar">
+      <div class="scroll-btns">
+        <button class="btn secondary" id="to-top">Go to Top</button>
+        <button class="btn secondary" id="to-end">Go to End</button>
+      </div>
+      <div class="small">Steps: 2 Upload File - 3 Enter Contact ID - 4 Fetch Data - 5 Edit Contact - 6 Export</div>
+    </div>
+  </div>
+
+<script>
+/* ---------------------------
+   Country list
+   --------------------------- */
+const countries = ["Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia",
+"Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium",
+"Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria",
+"Burkina Faso","Burundi","Cabo Verde","Cambodia","Cameroon","Canada","Central African Republic","Chad",
+"Chile","China","Colombia","Comoros","Congo","Costa Rica","Croatia","Cuba","Cyprus","Czech Republic",
+"Denmark","Djibouti","Dominica","Dominican Republic","East Timor","Ecuador","Egypt","El Salvador",
+"Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia","Fiji","Finland","France","Gabon",
+"Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana",
+"Haiti","Honduras","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy",
+"Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Korea, North","Korea, South","Kosovo",
+"Kuwait","Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania",
+"Luxembourg","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania",
+"Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique",
+"Myanmar","Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria",
+"North Macedonia","Norway","Oman","Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay",
+"Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Saint Kitts and Nevis",
+"Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia",
+"Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands",
+"Somalia","South Africa","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland",
+"Syria","Taiwan","Tajikistan","Tanzania","Thailand","Togo","Tonga","Trinidad and Tobago","Tunisia",
+"Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States",
+"Uruguay","Uzbekistan","Vanuatu","Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"];
+
+/* populate country selects */
+const homeCountry = document.getElementById('homeCountry');
+const workCountry = document.getElementById('workCountry');
+countries.forEach(c => {
+  const opt = document.createElement('option'); opt.value = c; opt.textContent = c;
+  homeCountry.appendChild(opt);
+  const opt2 = opt.cloneNode(true);
+  workCountry.appendChild(opt2);
+});
+
+/* ---------------------------
+   State
+   --------------------------- */
+let uploadedData = []; // array of objects from CSV/XLSX
+let currentImageBase64 = ''; // data:image/...;base64,...
+let lastLoadedId = null;
+
+/* ---------------------------
+   File upload parsing
+   --------------------------- */
+const fileInput = document.getElementById('file-input');
+const fileStatus = document.getElementById('file-status');
+
+fileInput.addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  if(!f){ fileStatus.textContent = 'No file loaded'; return; }
+  const name = f.name.toLowerCase();
+  if(name.endsWith('.csv')){
+    const txt = await f.text();
+    uploadedData = parseCSV(txt);
+    fileStatus.textContent = `Loaded CSV with ${uploadedData.length} rows`;
+  } else {
+    // parse with SheetJS
+    const arrayBuffer = await f.arrayBuffer();
+    const wb = XLSX.read(arrayBuffer, {type: 'array'});
+    const sheetName = wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    uploadedData = XLSX.utils.sheet_to_json(ws, {defval: ''});
+    fileStatus.textContent = `Loaded Excel with ${uploadedData.length} rows`;
+  }
+});
+
+/* simple CSV parser that expects header row */
+function parseCSV(text){
+  const rows = text.split(/\r?\n/).filter(r=>r.trim()!=='');
+  if(rows.length===0) return [];
+  const headers = splitCSVRow(rows[0]);
+  const data = [];
+  for(let i=1;i<rows.length;i++){
+    const cols = splitCSVRow(rows[i]);
+    const obj = {};
+    headers.forEach((h, idx) => obj[h.trim()] = (cols[idx] !== undefined ? cols[idx] : ''));
+    data.push(obj);
+  }
+  return data;
+}
+function splitCSVRow(row){
+  // simple CSV splitter handling quoted values
+  const re = /("([^"]*(?:\\""[^"]*)*)"|[^,]*)(?:,|$)/g;
+  const res = [];
+  row = row.replace(/\r/g,'');
+  let m;
+  while((m=re.exec(row)) !== null){
+    let val = m[2] !== undefined ? m[2].replace(/\\"/g,'"') : m[1];
+    res.push(val);
+  }
+  return res;
+}
+
+/* ---------------------------
+   ID controls and fetch
+   --------------------------- */
+const incId = document.getElementById('inc-id');
+const decId = document.getElementById('dec-id');
+const contactIdInput = document.getElementById('contact-id');
+const fetchBtn = document.getElementById('fetch-from-file');
+const loadMode = document.getElementById('load-mode');
+
+incId.addEventListener('click', ()=>{ contactIdInput.value = String(Number(contactIdInput.value||0)+1); });
+decId.addEventListener('click', ()=>{ contactIdInput.value = String(Math.max(0, (Number(contactIdInput.value||0)-1))); });
+
+fetchBtn.addEventListener('click', ()=> {
+  const id = contactIdInput.value;
+  if(loadMode.value === 'manual' || uploadedData.length===0){
+    clearForm();
+    lastLoadedId = id;
+    document.getElementById('preview-names').textContent = 'Manual entry (blank form)';
+    return;
+  }
+  // try find by ID (exact match)
+  const rec = uploadedData.find(r => String(r.ID) === String(id) || String(r.Id) === String(id) || String(r.id) === String(id));
+  if(!rec){
+    alert('No record found with that ID in the uploaded file. Opening blank form.');
+    clearForm();
+    lastLoadedId = id;
+    return;
+  }
+  loadRecordToForm(rec);
+  lastLoadedId = id;
+});
+
+/* ---------------------------
+   Form helpers: load/clear/save
+   --------------------------- */
+function loadRecordToForm(rec){
+  // map fields from file (keys may vary in case)
+  function g(k){ return rec[k] ?? rec[k.toLowerCase()] ?? rec[k.toUpperCase()] ?? ''; }
+  // image: accept either a full data uri or raw base64
+  let img = g('ImageBase64') || g('image') || g('Image') || '';
+  if(img && !img.startsWith('data:image')) {
+    // try to guess jpeg/png (if begins with /9j/ then jpeg)
+    if(img.startsWith('/9j') || img.charAt(0)==='/') img = 'data:image/jpeg;base64,' + img;
+    else img = 'data:image/png;base64,' + img;
+  }
+  if(img) setImageBase64(img);
+
+  document.getElementById('firstName').value = g('FirstName') || g('first') || '';
+  document.getElementById('middleName').value = g('MiddleName') || g('middle') || '';
+  document.getElementById('lastName').value = g('LastName') || g('last') || '';
+  document.getElementById('nickName').value = g('NickName') || g('nickname') || '';
+  document.getElementById('phoneHome').value = g('PhoneHome') || g('phonehome') || '';
+  document.getElementById('phoneMobile').value = g('PhoneMobile') || g('phonemobile') || '';
+  document.getElementById('email').value = g('Email') || g('emailaddress') || '';
+  document.getElementById('dob').value = g('DOB') || g('DateOfBirth') || '';
+  document.getElementById('homeStreet1').value = g('HomeStreet1') || g('HomeStreet1') || '';
+  document.getElementById('homeStreet2').value = g('HomeStreet2') || '';
+  document.getElementById('homeCity').value = g('HomeCity') || '';
+  document.getElementById('homeZip').value = g('HomeZip') || '';
+  document.getElementById('homeCountry').value = g('HomeCountry') || '';
+
+  document.getElementById('company').value = g('Company') || '';
+  document.getElementById('department').value = g('Department') || '';
+  document.getElementById('designation').value = g('Designation') || '';
+  document.getElementById('role').value = g('Role') || '';
+  document.getElementById('phoneWork').value = g('PhoneWork') || '';
+  document.getElementById('workEmail').value = g('WorkEmail') || '';
+  document.getElementById('workStreet1').value = g('WorkStreet1') || '';
+  document.getElementById('workStreet2').value = g('WorkStreet2') || '';
+  document.getElementById('workCity').value = g('WorkCity') || '';
+  document.getElementById('workZip').value = g('WorkZip') || '';
+  document.getElementById('workCountry').value = g('WorkCountry') || '';
+
+  document.getElementById('webAddress').value = g('WebAddress') || '';
+  // instantaneous and social, allow either comma-separated fields in a cell or separate columns
+  const imList = ['WhatsApp','WA_Business','Imo','Viber','Twitter','Messenger','WeChat','Telegram','Sampchat'];
+  const imvals = imList.map(k => g(k)).filter(Boolean);
+  if(imvals.length) document.getElementById('im_all').value = imvals.join(',');
+  const smList = ['Facebook','LinkedIn','Instagram','YouTube','Fiverr','Upwork','Freelancer'];
+  const smvals = smList.map(k => g(k)).filter(Boolean);
+  if(smvals.length) document.getElementById('social_all').value = smvals.join(',');
+
+  document.getElementById('notes').value = g('Notes') || g('notes') || '';
+  document.getElementById('preview-names').textContent = `${document.getElementById('firstName').value || ''} ${document.getElementById('lastName').value || ''}`.trim();
+}
+
+/* image selection and base64 */
+const imageFileInput = document.getElementById('image-file');
+const thumb = document.getElementById('thumb');
+const imageSize = document.getElementById('image-size');
+
+imageFileInput.addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  if(!f) return;
+  if(!['image/jpeg','image/jpg','image/png'].includes(f.type)){
+    alert('Only jpg/jpeg/png allowed');
+    imageFileInput.value = '';
+    return;
+  }
+  const dataUrl = await fileToDataURL(f);
+  setImageBase64(dataUrl);
+});
+
+function setImageBase64(dataUrl){
+  currentImageBase64 = dataUrl;
+  thumb.src = dataUrl;
+  thumb.style.display = 'block';
+  imageSize.textContent = `Image size: ${(dataUrl.length/1024).toFixed(0)} KB (base64)`;
+}
+
+/* helper: file to data URL */
+function fileToDataURL(file){
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result));
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+/* clear form */
+function clearForm(){
+  document.querySelectorAll('input[type="text"], input[type="email"], textarea').forEach(i=>i.value='');
+  document.getElementById('homeCountry').value = '';
+  document.getElementById('workCountry').value = '';
+  currentImageBase64 = '';
+  thumb.src=''; thumb.style.display='none';
+  document.getElementById('preview-names').textContent = 'No contact loaded';
+}
+
+/* save manual (stores in memory only) */
+document.getElementById('save-manual').addEventListener('click', ()=>{
+  const obj = collectForm();
+  if(!obj.PhoneMobile){ alert('Phone Mobile is mandatory'); return; }
+  alert('Contact saved in current session (not persisted). Use Export to download files.');
+  lastLoadedId = contactIdInput.value || '';
+});
+
+/* collect form values into object */
+function collectForm(){
+  return {
+    ID: contactIdInput.value || '',
+    ImageBase64: currentImageBase64 ? currentImageBase64.split(',')[1] : '',
+    FirstName: document.getElementById('firstName').value.trim(),
+    MiddleName: document.getElementById('middleName').value.trim(),
+    LastName: document.getElementById('lastName').value.trim(),
+    NickName: document.getElementById('nickName').value.trim(),
+    PhoneHome: document.getElementById('phoneHome').value.trim(),
+    PhoneMobile: document.getElementById('phoneMobile').value.trim(),
+    Email: document.getElementById('email').value.trim(),
+    DOB: document.getElementById('dob').value.trim(),
+    HomeStreet1: document.getElementById('homeStreet1').value.trim(),
+    HomeStreet2: document.getElementById('homeStreet2').value.trim(),
+    HomeCity: document.getElementById('homeCity').value.trim(),
+    HomeZip: document.getElementById('homeZip').value.trim(),
+    HomeCountry: document.getElementById('homeCountry').value,
+    Company: document.getElementById('company').value.trim(),
+    Department: document.getElementById('department').value.trim(),
+    Designation: document.getElementById('designation').value.trim(),
+    Role: document.getElementById('role').value.trim(),
+    PhoneWork: document.getElementById('phoneWork').value.trim(),
+    WorkEmail: document.getElementById('workEmail').value.trim(),
+    WorkStreet1: document.getElementById('workStreet1').value.trim(),
+    WorkStreet2: document.getElementById('workStreet2').value.trim(),
+    WorkCity: document.getElementById('workCity').value.trim(),
+    WorkZip: document.getElementById('workZip').value.trim(),
+    WorkCountry: document.getElementById('workCountry').value,
+    WebAddress: document.getElementById('webAddress').value.trim(),
+    InstantMessages: document.getElementById('im_all').value.trim(),
+    SocialMedia: document.getElementById('social_all').value.trim(),
+    Notes: document.getElementById('notes').value.trim()
+  };
+}
+
+/* ---------------------------
+   Exports: CSV / VCF (v3) / QR
+   --------------------------- */
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* CSV export (single record) */
+document.getElementById('download-csv').addEventListener('click', ()=>{
+  const obj = collectForm();
+  if(!obj.PhoneMobile){ alert('Phone Mobile is mandatory'); return; }
+  const headers = Object.keys(obj);
+  const row = headers.map(h => csvEscape(obj[h] ?? '')).join(',');
+  const csv = headers.join(',') + '\n' + row;
+  const fname = fileNameFor(obj);
+  downloadBlob(new Blob([csv], {type:'text/csv;charset=utf-8'}), fname + '.csv');
+});
+
+function csvEscape(v){
+  if(v===null || v===undefined) return '';
+  v = String(v);
+  if(v.includes(',') || v.includes('"') || v.includes('\n')) return '"' + v.replace(/"/g,'""') + '"';
+  return v;
+}
+
+function fileNameFor(obj){
+  const fn = (obj.FirstName || 'First') + '_' + (obj.LastName || 'Last') + '_' + (obj.PhoneMobile || 'Phone');
+  return fn.replace(/\s+/g,'_');
+}
+
+/* VCF v3 export with embedded image */
+document.getElementById('download-vcf').addEventListener('click', ()=>{
+  const obj = collectForm();
+  if(!obj.PhoneMobile){ alert('Phone Mobile is mandatory'); return; }
+  const vcf = buildVCardV3(obj);
+  const fname = fileNameFor(obj);
+  downloadBlob(new Blob([vcf], {type:'text/vcard;charset=utf-8'}), fname + '.vcf');
+});
+
+/* build vCard v3 text */
+function buildVCardV3(o){
+  const lines = [];
+  lines.push('BEGIN:VCARD');
+  lines.push('VERSION:3.0');
+  // full name
+  const n = `${o.LastName || ''};${o.FirstName || ''};${o.MiddleName || ''};`;
+  lines.push('N:' + n);
+  lines.push('FN:' + [o.FirstName, o.MiddleName, o.LastName].filter(Boolean).join(' '));
+  if(o.NickName) lines.push('NICKNAME:' + o.NickName);
+  if(o.Email) lines.push('EMAIL;TYPE=INTERNET:' + o.Email);
+  if(o.PhoneMobile) lines.push('TEL;TYPE=CELL,VOICE:' + o.PhoneMobile);
+  if(o.PhoneHome) lines.push('TEL;TYPE=HOME,VOICE:' + o.PhoneHome);
+  if(o.PhoneWork) lines.push('TEL;TYPE=WORK,VOICE:' + o.PhoneWork);
+  // addresses
+  const adrHome = ['','', o.HomeStreet1 || '', o.HomeCity || '', '', o.HomeZip || '', o.HomeCountry || ''];
+  if(o.HomeStreet1 || o.HomeCity || o.HomeZip) lines.push('ADR;TYPE=HOME:;' + [o.HomeStreet1 || '', o.HomeStreet2 || '', o.HomeCity || '', '', o.HomeZip || '', o.HomeCountry || ''].join(';'));
+  if(o.WorkStreet1 || o.WorkCity || o.WorkZip) lines.push('ADR;TYPE=WORK:;' + [o.WorkStreet1 || '', o.WorkStreet2 || '', o.WorkCity || '', '', o.WorkZip || '', o.WorkCountry || ''].join(';'));
+  if(o.WebAddress) lines.push('URL:' + o.WebAddress);
+  if(o.Company) lines.push('ORG:' + o.Company + (o.Department ? ';' + o.Department : ''));
+  if(o.Designation) lines.push('TITLE:' + o.Designation);
+
+  // Notes (limit to 500 chars)
+  if(o.Notes) lines.push('NOTE:' + foldLine(o.Notes.substring(0,500)));
+
+  // DOB if provided (vCard expects YYYY-MM-DD ideally, but user uses dd-mmm[-yyyy])
+  if(o.DOB){
+    // attempt to convert dd-MMM-yyyy to YYYY-MM-DD (best effort). If no year, place as '0000-MM-DD' is not supported; we will put as NOTE too
+    const dt = parseDOB(o.DOB);
+    if(dt.jsx) lines.push('BDAY:' + dt.jsx);
+    else lines.push('X-DOB:' + o.DOB);
+  }
+
+  // embed photo: vCard 3.0 supports PHOTO;ENCODING=b;TYPE=JPEG:<base64>
+  if(o.ImageBase64){
+    // we stored ImageBase64 as base64 without prefix; ensure type guess
+    const base64 = o.ImageBase64;
+    const isJpeg = base64.charAt(0) === '/' || base64.startsWith('/9j');
+    const type = isJpeg ? 'JPEG' : 'PNG';
+    // split long base64 lines per RFC (optional). We include as single line (some apps accept).
+    lines.push('PHOTO;ENCODING=b;TYPE=' + type + ':' + base64);
+  }
+  // Social & IM stored in X- fields
+  if(o.InstantMessages) lines.push('X-INSTANT-MESSAGES:' + o.InstantMessages);
+  if(o.SocialMedia) lines.push('X-SOCIAL-MEDIA:' + o.SocialMedia);
+
+  lines.push('END:VCARD');
+  return lines.join('\r\n');
+}
+
+/* vCard helpers */
+function foldLine(s){
+  // naive folding: insert \n and space every 75 chars
+  return s.replace(/(.{1,72})/g, '$1\n ');
+}
+function parseDOB(s){
+  // expect formats like 12-Jan-1985 or 12-Jan
+  const parts = s.split('-');
+  if(parts.length === 3){
+    // dd-MMM-yyyy -> YYYY-MM-DD
+    const dd = parts[0].padStart(2,'0');
+    const m = parts[1];
+    const yyyy = parts[2];
+    const months = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+    const mm = months[m] || m;
+    if(/^\d{4}$/.test(yyyy)) return {jsx: `${yyyy}-${mm}-${dd}`};
+  }
+  return {};
+}
+
+/* ---------------------------
+   QR code generation (vCard content)
+   --------------------------- */
+let qrcode = null;
+document.getElementById('generate-qr').addEventListener('click', ()=>{
+  const obj = collectForm();
+  if(!obj.PhoneMobile){ alert('Phone Mobile is mandatory'); return; }
+  const vcard = buildVCardV3(obj);
+  const el = document.getElementById('qrcode');
+  el.innerHTML = '';
+  qrcode = new QRCode(el, {
+    text: vcard,
+    width: 160,
+    height: 160,
+    colorDark : "#000000",
+    colorLight : "#ffffff",
+    correctLevel : QRCode.CorrectLevel.H
+  });
+});
+
+/* Download QR as PNG (draw canvas and save) */
+document.getElementById('download-qr').addEventListener('click', ()=>{
+  const el = document.querySelector('#qrcode img') || document.querySelector('#qrcode canvas');
+  if(!el){ alert('Generate QR first'); return; }
+  let src;
+  if(el.tagName === 'IMG') src = el.src;
+  else {
+    const canvas = el;
+    src = canvas.toDataURL('image/png');
+  }
+  // Download directly
+  const a = document.createElement('a');
+  a.href = src;
+  a.download = fileNameFor(collectForm()) + '_QR.png';
+  document.body.appendChild(a); a.click(); a.remove();
+});
+
+/* ---------------------------
+   Scroll buttons
+   --------------------------- */
+document.getElementById('to-top').addEventListener('click', ()=>{ window.scrollTo({top:0,behavior:'smooth'}); });
+document.getElementById('to-end').addEventListener('click', ()=>{ window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); });
+
+/* ---------------------------
+   Utilities
+   --------------------------- */
+function csvToArrayRow(line){
+  return splitCSVRow(line);
+}
+
+/* On load: set preview name when fields change */
+['firstName','lastName','phoneMobile'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=>{
+    document.getElementById('preview-names').textContent = `${document.getElementById('firstName').value || ''} ${document.getElementById('lastName').value || ''}`.trim();
+  });
+});
+
+/* ---------------------------
+   Small CSV parsing demo helper for users to inspect
+   --------------------------- */
+/* End of script */
+</script>
+</body>
+</html>
